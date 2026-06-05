@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vaultdrop — one-time encrypted file sharing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #0a0a0b;
+  --surface:   #111113;
+  --surface2:  #1a1a1d;
+  --border:    #2a2a2f;
+  --border2:   #3a3a42;
+  --green:     #00e07a;
+  --green-dim: #00a358;
+  --green-glow:#00e07a28;
+  --text:      #e8e8ec;
+  --muted:     #6b6b78;
+  --danger:    #ff4d6a;
+  --mono:      'IBM Plex Mono', monospace;
+  --sans:      'IBM Plex Sans', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+/* scanline overlay */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.03) 2px, rgba(0,0,0,.03) 4px);
+  pointer-events: none; z-index: 0;
+}
+
+body { position: relative; z-index: 1; }
+
+.page { max-width: 720px; margin: 0 auto; padding: 3rem 1.5rem; }
+
+/* ── header ── */
+header { display: flex; align-items: center; gap: 1rem; margin-bottom: 3rem; }
+.logo-mark {
+  width: 44px; height: 44px; border: 1.5px solid var(--green);
+  display: grid; place-items: center;
+  box-shadow: 0 0 16px var(--green-glow), inset 0 0 16px var(--green-glow);
+  animation: pulse 4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 12px var(--green-glow), inset 0 0 12px var(--green-glow); }
+  50%      { box-shadow: 0 0 28px var(--green-glow), inset 0 0 24px var(--green-glow); }
+}
+.logo-mark svg { width: 22px; height: 22px; stroke: var(--green); fill: none; stroke-width: 1.5; }
+.logo-text { font-family: var(--mono); font-size: 1.1rem; font-weight: 600; letter-spacing: .05em; }
+.logo-text span { color: var(--green); }
+.tagline { font-size: .75rem; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+
+nav { margin-left: auto; display: flex; gap: 1.5rem; }
+nav a { font-family: var(--mono); font-size: .75rem; color: var(--muted); text-decoration: none; transition: color .15s; }
+nav a:hover { color: var(--green); }
+
+/* ── drop zone ── */
+.drop-zone {
+  border: 1.5px dashed var(--border2);
+  border-radius: 4px;
+  padding: 3rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  position: relative;
+  overflow: hidden;
+  background: var(--surface);
+}
+.drop-zone.drag-over { border-color: var(--green); background: var(--green-glow); }
+.drop-zone.has-file  { border-color: var(--green-dim); }
+
+.drop-icon { margin: 0 auto 1rem; width: 48px; height: 48px; }
+.drop-icon svg { stroke: var(--muted); fill: none; stroke-width: 1.5; transition: stroke .2s; }
+.drop-zone:hover .drop-icon svg,
+.drop-zone.drag-over .drop-icon svg { stroke: var(--green); }
+
+.drop-title { font-family: var(--mono); font-size: .9rem; color: var(--text); margin-bottom: .5rem; }
+.drop-sub   { font-size: .8rem; color: var(--muted); }
+.drop-sub em { color: var(--green-dim); font-style: normal; }
+
+.file-chosen {
+  display: none;
+  align-items: center; gap: .75rem;
+  background: var(--surface2);
+  border-radius: 3px; padding: .75rem 1rem;
+  margin-top: 1rem; text-align: left;
+}
+.file-chosen.show { display: flex; }
+.file-chosen .fname { font-family: var(--mono); font-size: .8rem; color: var(--green); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-chosen .fsize { font-family: var(--mono); font-size: .75rem; color: var(--muted); white-space: nowrap; }
+.file-clear { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: 0 2px; }
+.file-clear:hover { color: var(--danger); }
+
+#fileInput { display: none; }
+
+/* ── options ── */
+.options { margin-top: 1.5rem; display: grid; gap: .75rem; }
+
+.opt-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+@media (max-width: 520px) { .opt-row { grid-template-columns: 1fr; } }
+
+.field { display: flex; flex-direction: column; gap: .35rem; }
+.field label { font-family: var(--mono); font-size: .7rem; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+
+.field input, .field select {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); font-family: var(--mono); font-size: .85rem;
+  padding: .6rem .8rem; border-radius: 3px;
+  outline: none; transition: border-color .15s;
+  appearance: none;
+}
+.field input:focus, .field select:focus { border-color: var(--green); }
+.field input::placeholder { color: var(--muted); }
+
+.hint { font-size: .7rem; color: var(--muted); margin-top: .15rem; }
+.hint.green { color: var(--green-dim); }
+
+/* ── submit ── */
+.btn-vault {
+  margin-top: 1.5rem; width: 100%;
+  background: transparent;
+  border: 1.5px solid var(--green);
+  color: var(--green);
+  font-family: var(--mono); font-size: .9rem; font-weight: 500;
+  padding: .85rem;
+  cursor: pointer; border-radius: 3px;
+  transition: background .15s, box-shadow .15s, transform .1s;
+  letter-spacing: .08em;
+  position: relative; overflow: hidden;
+}
+.btn-vault:hover:not(:disabled) {
+  background: var(--green-glow);
+  box-shadow: 0 0 24px var(--green-glow);
+}
+.btn-vault:active:not(:disabled) { transform: scale(.99); }
+.btn-vault:disabled { opacity: .4; cursor: not-allowed; }
+
+/* loading bar inside button */
+.btn-vault .bar {
+  position: absolute; left: 0; top: 0; height: 100%;
+  background: var(--green-glow); width: 0; transition: width .3s;
+}
+.btn-vault span { position: relative; z-index: 1; }
+
+/* ── result ── */
+.result {
+  display: none;
+  margin-top: 2rem;
+  border: 1px solid var(--green-dim);
+  border-radius: 4px;
+  background: var(--surface);
+  overflow: hidden;
+  animation: slideIn .3s ease;
+}
+@keyframes slideIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: translateY(0); } }
+.result.show { display: block; }
+
+.result-header {
+  display: flex; align-items: center; gap: .75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.result-header .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: blink 2s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+.result-header h2 { font-family: var(--mono); font-size: .85rem; color: var(--green); flex: 1; }
+.result-badge {
+  font-family: var(--mono); font-size: .7rem;
+  border: 1px solid var(--green-dim); color: var(--green-dim);
+  padding: .2rem .6rem; border-radius: 2px;
+}
+
+.result-body { padding: 1.25rem; }
+
+.link-row {
+  display: flex; align-items: center; gap: .5rem;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 3px; padding: .6rem .8rem;
+  margin-bottom: 1rem;
+}
+.link-row .link-val {
+  font-family: var(--mono); font-size: .8rem; color: var(--text);
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  word-break: break-all;
+}
+.btn-copy {
+  background: none; border: 1px solid var(--border2);
+  color: var(--muted); font-family: var(--mono); font-size: .7rem;
+  padding: .3rem .7rem; cursor: pointer; border-radius: 2px;
+  white-space: nowrap; transition: color .15s, border-color .15s;
+}
+.btn-copy:hover { color: var(--green); border-color: var(--green); }
+.btn-copy.copied { color: var(--green); border-color: var(--green); }
+
+.result-meta {
+  display: grid; grid-template-columns: repeat(3,1fr); gap: .75rem;
+  margin-top: 1rem;
+}
+.meta-item { display: flex; flex-direction: column; gap: .25rem; }
+.meta-label { font-family: var(--mono); font-size: .65rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.meta-val   { font-family: var(--mono); font-size: .8rem; color: var(--text); }
+
+.warn-box {
+  margin-top: 1rem;
+  padding: .75rem 1rem;
+  border-left: 2px solid var(--danger);
+  background: rgba(255,77,106,.06);
+  font-size: .78rem; color: var(--muted);
+  font-family: var(--mono);
+  line-height: 1.6;
+}
+.warn-box strong { color: var(--danger); }
+
+/* ── error ── */
+.error-box {
+  display: none; margin-top: 1rem;
+  padding: .75rem 1rem;
+  border: 1px solid var(--danger);
+  background: rgba(255,77,106,.06);
+  font-family: var(--mono); font-size: .8rem; color: var(--danger);
+  border-radius: 3px;
+}
+.error-box.show { display: block; }
+
+/* ── footer ── */
+footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: gap; }
+footer p { font-family: var(--mono); font-size: .7rem; color: var(--muted); }
+footer a { color: var(--muted); text-decoration: none; }
+footer a:hover { color: var(--green); }
+
+/* ── how it works ── */
+.how { margin-top: 3rem; }
+.how h2 { font-family: var(--mono); font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 1rem; }
+.steps { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; }
+@media (max-width: 520px) { .steps { grid-template-columns: 1fr; } }
+.step { padding: 1rem; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); }
+.step-num { font-family: var(--mono); font-size: .7rem; color: var(--green-dim); margin-bottom: .5rem; }
+.step-title { font-family: var(--mono); font-size: .82rem; color: var(--text); margin-bottom: .3rem; }
+.step-desc { font-size: .77rem; color: var(--muted); line-height: 1.6; }
+
+/* ── progress ── */
+.upload-progress { display: none; margin-top: 1rem; }
+.upload-progress.show { display: block; }
+.progress-bar-wrap { background: var(--surface2); border-radius: 2px; height: 4px; overflow: hidden; margin-bottom: .5rem; }
+.progress-bar-fill { height: 100%; background: var(--green); width: 0; transition: width .2s; border-radius: 2px; }
+.progress-text { font-family: var(--mono); font-size: .72rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <div class="logo-mark">
+    <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="1"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1" fill="currentColor" stroke="none" style="fill:var(--green)"/></svg>
+  </div>
+  <div>
+    <div class="logo-text">vault<span>drop</span></div>
+    <div class="tagline">// one-time encrypted file sharing</div>
+  </div>
+  <nav>
+    <a href="#how">how it works</a>
+    <a href="https://github.com/franc417/vaultdrop" target="_blank">github</a>
+  </nav>
+</header>
+
+<!-- Drop zone -->
+<div class="drop-zone" id="dropZone">
+  <div class="drop-icon">
+    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+  </div>
+  <div class="drop-title">Drop file here or click to browse</div>
+  <div class="drop-sub">Max <em>{{ max_mb }} MB</em> · All types accepted</div>
+  <div class="file-chosen" id="fileChosen">
+    <span class="fname" id="chosenName">—</span>
+    <span class="fsize" id="chosenSize">—</span>
+    <button class="file-clear" id="fileClear" title="Remove file">✕</button>
+  </div>
+  <input type="file" id="fileInput">
+</div>
+
+<!-- Options -->
+<div class="options">
+  <div class="opt-row">
+    <div class="field">
+      <label>Passphrase (optional)</label>
+      <input type="password" id="passphrase" placeholder="leave blank to auto-generate">
+      <div class="hint">Recipient needs this to decrypt. Auto-generated if blank.</div>
+    </div>
+    <div class="field">
+      <label>Expires after</label>
+      <select id="ttl">
+        <option value="1">1 hour</option>
+        <option value="6">6 hours</option>
+        <option value="24" selected>24 hours</option>
+        <option value="72">3 days</option>
+        <option value="168">7 days</option>
+      </select>
+    </div>
+  </div>
+  <div class="field">
+    <label>Downloads before burn</label>
+    <select id="burnCount">
+      <option value="1" selected>1 — burn after read</option>
+      <option value="2">2 downloads</option>
+      <option value="5">5 downloads</option>
+      <option value="10">10 downloads</option>
+    </select>
+    <div class="hint green">File is permanently deleted from server after limit is reached.</div>
+  </div>
+</div>
+
+<div class="upload-progress" id="uploadProgress">
+  <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressFill"></div></div>
+  <div class="progress-text" id="progressText">Encrypting and uploading...</div>
+</div>
+
+<div class="error-box" id="errorBox"></div>
+
+<button class="btn-vault" id="uploadBtn" disabled>
+  <div class="bar" id="btnBar"></div>
+  <span id="btnText">SELECT A FILE TO SEAL</span>
+</button>
+
+<!-- Result -->
+<div class="result" id="result">
+  <div class="result-header">
+    <div class="dot"></div>
+    <h2 id="resultTitle">DROP SEALED</h2>
+    <span class="result-badge" id="resultBadge">BURN×1</span>
+  </div>
+  <div class="result-body">
+    <div class="field" style="margin-bottom:.5rem">
+      <label>Share this link</label>
+    </div>
+    <div class="link-row">
+      <span class="link-val" id="resultLink">—</span>
+      <button class="btn-copy" id="copyLink" onclick="copyToClipboard('resultLink','copyLink')">copy</button>
+    </div>
+
+    <div id="passphraseRow" style="display:none; margin-top:.75rem">
+      <div class="field" style="margin-bottom:.5rem">
+        <label>Passphrase (send separately!)</label>
+      </div>
+      <div class="link-row">
+        <span class="link-val" id="resultPassphrase">—</span>
+        <button class="btn-copy" id="copyPass" onclick="copyToClipboard('resultPassphrase','copyPass')">copy</button>
+      </div>
+      <div class="warn-box">
+        <strong>⚠ NEVER share the passphrase in the same channel as the link.</strong><br>
+        The link contains the ciphertext. The passphrase unlocks it. Separate channels = zero trust needed.
+      </div>
+    </div>
+
+    <div class="result-meta" id="resultMeta"></div>
+  </div>
+</div>
+
+<!-- How it works -->
+<div class="how" id="how">
+  <h2>// how it works</h2>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">01</div>
+      <div class="step-title">AES-256-GCM encryption</div>
+      <div class="step-desc">File is encrypted with a PBKDF2-derived key (260k iterations) before touching disk. Server never sees plaintext.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">02</div>
+      <div class="step-title">Burn-after-read</div>
+      <div class="step-desc">Ciphertext is permanently deleted from the server the moment the download limit is reached. No recovery possible.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">03</div>
+      <div class="step-title">Fragment key (no-log)</div>
+      <div class="step-desc">Auto-generated keys live in the URL fragment (#key). Fragments are never sent to the server — not in logs, not in analytics.</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>vaultdrop · self-hosted · <a href="https://github.com/franc417/vaultdrop">MIT license</a></p>
+  <p>no telemetry · no accounts · no cloud</p>
+</footer>
+
+</div><!-- .page -->
+
+<script>
+const dropZone   = document.getElementById('dropZone');
+const fileInput  = document.getElementById('fileInput');
+const fileChosen = document.getElementById('fileChosen');
+const chosenName = document.getElementById('chosenName');
+const chosenSize = document.getElementById('chosenSize');
+const fileClear  = document.getElementById('fileClear');
+const uploadBtn  = document.getElementById('uploadBtn');
+const btnText    = document.getElementById('btnText');
+const btnBar     = document.getElementById('btnBar');
+const errorBox   = document.getElementById('errorBox');
+const result     = document.getElementById('result');
+const uploadProgress = document.getElementById('uploadProgress');
+const progressFill   = document.getElementById('progressFill');
+const progressText   = document.getElementById('progressText');
+
+let selectedFile = null;
+
+function formatSize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
+  return (n/1048576).toFixed(1) + ' MB';
+}
+
+function formatTs(ts) {
+  return new Date(ts * 1000).toLocaleString();
+}
+
+function setFile(f) {
+  selectedFile = f;
+  chosenName.textContent = f.name;
+  chosenSize.textContent = formatSize(f.size);
+  fileChosen.classList.add('show');
+  dropZone.classList.add('has-file');
+  uploadBtn.disabled = false;
+  btnText.textContent = `SEAL & UPLOAD — ${f.name}`;
+  errorBox.classList.remove('show');
+  result.classList.remove('show');
+}
+
+function clearFile() {
+  selectedFile = null;
+  fileInput.value = '';
+  fileChosen.classList.remove('show');
+  dropZone.classList.remove('has-file');
+  uploadBtn.disabled = true;
+  btnText.textContent = 'SELECT A FILE TO SEAL';
+}
+
+dropZone.addEventListener('click', e => { if (e.target !== fileClear) fileInput.click(); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+fileClear.addEventListener('click', e => { e.stopPropagation(); clearFile(); });
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', ()=> dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+
+function copyToClipboard(elemId, btnId) {
+  const val = document.getElementById(elemId).textContent;
+  navigator.clipboard.writeText(val).then(() => {
+    const btn = document.getElementById(btnId);
+    btn.textContent = 'copied ✓';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+uploadBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+
+  uploadBtn.disabled = true;
+  errorBox.classList.remove('show');
+  result.classList.remove('show');
+  uploadProgress.classList.add('show');
+  progressFill.style.width = '0%';
+  progressText.textContent = 'Encrypting and uploading...';
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+  formData.append('passphrase', document.getElementById('passphrase').value);
+  formData.append('ttl', document.getElementById('ttl').value);
+  formData.append('burn_count', document.getElementById('burnCount').value);
+
+  // Fake progress during upload
+  let p = 0;
+  const ticker = setInterval(() => {
+    p = Math.min(p + Math.random()*12, 85);
+    progressFill.style.width = p + '%';
+  }, 200);
+
+  try {
+    const resp = await fetch('/api/drop', { method: 'POST', body: formData });
+    clearInterval(ticker);
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      progressFill.style.width = '0%';
+      uploadProgress.classList.remove('show');
+      errorBox.textContent = '✕ ' + (data.error || 'Upload failed');
+      errorBox.classList.add('show');
+      uploadBtn.disabled = false;
+      return;
+    }
+
+    progressFill.style.width = '100%';
+    progressText.textContent = 'Sealed ✓';
+    setTimeout(() => uploadProgress.classList.remove('show'), 800);
+
+    // Populate result
+    document.getElementById('resultLink').textContent = data.link;
+    document.getElementById('resultBadge').textContent = `BURN×${data.burn_count}`;
+    document.getElementById('resultTitle').textContent = 'DROP SEALED';
+
+    const passRow = document.getElementById('passphraseRow');
+    if (data.passphrase) {
+      // auto-generated key shown (it's already in the link fragment but show separately too)
+      document.getElementById('resultPassphrase').textContent = data.passphrase;
+      passRow.style.display = 'block';
+    } else {
+      passRow.style.display = 'none';
+    }
+
+    const meta = document.getElementById('resultMeta');
+    meta.innerHTML = `
+      <div class="meta-item"><span class="meta-label">File</span><span class="meta-val">${data.filename}</span></div>
+      <div class="meta-item"><span class="meta-label">Size</span><span class="meta-val">${formatSize(data.size)}</span></div>
+      <div class="meta-item"><span class="meta-label">Expires</span><span class="meta-val">${formatTs(data.expires_at)}</span></div>
+    `;
+
+    result.classList.add('show');
+    clearFile();
+
+  } catch (err) {
+    clearInterval(ticker);
+    uploadProgress.classList.remove('show');
+    errorBox.textContent = '✕ Network error: ' + err.message;
+    errorBox.classList.add('show');
+    uploadBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

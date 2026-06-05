@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vaultdrop — drop not found</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0a0b;--surface:#111113;--border:#2a2a2f;--green:#00e07a;--green-glow:#00e07a28;--text:#e8e8ec;--muted:#6b6b78;--danger:#ff4d6a;--mono:'IBM Plex Mono',monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh;display:flex;align-items:center;justify-content:center}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);pointer-events:none}
+.box{text-align:center;padding:2rem;max-width:420px}
+.icon{font-size:3rem;margin-bottom:1.5rem;color:var(--danger);animation:flicker 3s ease-in-out infinite}
+@keyframes flicker{0%,100%{opacity:1}50%{opacity:.6}72%{opacity:.9}74%{opacity:.4}76%{opacity:.9}}
+h1{font-size:1.1rem;color:var(--danger);margin-bottom:.75rem;letter-spacing:.08em}
+p{font-size:.82rem;color:var(--muted);line-height:1.7;margin-bottom:2rem}
+a{display:inline-block;border:1px solid var(--border);color:var(--muted);padding:.6rem 1.5rem;text-decoration:none;font-size:.78rem;letter-spacing:.08em;transition:color .15s,border-color .15s}
+a:hover{color:var(--green);border-color:var(--green)}
+.code{font-size:.7rem;color:var(--muted);margin-top:3rem;opacity:.4}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="icon">🔒</div>
+  <h1>DROP NOT FOUND</h1>
+  <p>{{ reason }}<br><br>For security, files are permanently wiped once claimed or expired. No recovery is possible.</p>
+  <a href="/">← seal a new drop</a>
+  <div class="code">vaultdrop // no telemetry // no cloud</div>
+</div>
+</body>
+</html>
