@@ -1,390 +1,183 @@
-# 🔒 vaultdrop
+# vaultdrop
 
-> **One-time encrypted file sharing — burn after read, self-hosted.**
+Self-hosted, zero-knowledge, one-time encrypted file sharing. No accounts,
+no plaintext ever touching the server, drops that self-destruct after they're
+claimed.
 
-Share a file. Someone downloads it. It's gone. Forever.
+Think Firefox Send, but self-hosted and yours.
 
-vaultdrop is a lightweight, self-hosted file-drop server that encrypts every upload with **AES-256-GCM**, generates a one-time link, and permanently deletes the file the moment it is claimed. No cloud. No accounts. No trace.
-
----
-
-## ✨ Features
-
-| | |
-|---|---|
-| 🔐 **AES-256-GCM encryption** | Every file is encrypted server-side before it touches disk |
-| 🔑 **PBKDF2 key derivation** | 260 000 iterations of SHA-256 — brute-force resistant |
-| 🔥 **Burn after read** | File and record are wiped on download (configurable 1–10 burns) |
-| ⏱️ **Configurable TTL** | Drops expire automatically — default 24 h, max 7 days |
-| 🔗 **Passphrase-in-fragment** | Auto-generated keys live in the URL `#fragment` — never sent to the server |
-| 🌐 **Web UI** | Clean browser interface — no client install needed for recipients |
-| 💻 **CLI** | `vaultdrop-cli seal / claim / status` for terminal workflows |
-| 🤖 **Universal installer** | One script covers Arch, Ubuntu, Fedora, macOS, and **Termux** |
-| 🧹 **Auto-cleanup daemon** | Background thread purges expired drops every 5 minutes |
-| 📦 **Zero external DB** | SQLite — runs anywhere, zero config |
+> **v2.0.0** is a from-scratch security rewrite. Encryption now happens
+> entirely in your browser or the CLI — the server only ever sees ciphertext.
+> See [`CHANGELOG.md`](CHANGELOG.md) for what changed and
+> [`SECURITY.md`](SECURITY.md) for the full threat model.
 
 ---
 
-## 📁 Project Structure
+## How it works
 
-```
-vaultdrop/
-├── server.py           # Flask server — API + web routes + crypto + cleanup
-├── vaultdrop_cli.py    # Click-based CLI (seal / claim / status)
-├── install.sh          # Universal installer (Linux / macOS / Termux)
-├── requirements.txt    # Python dependencies
-└── templates/
-    ├── index.html      # Upload page
-    ├── drop.html       # Download / claim page
-    └── gone.html       # Expired / burned drop page
-```
+1. You pick a file. Your browser (or the CLI) generates a random key,
+   encrypts the file locally with **AES-256-GCM**, and uploads only the
+   ciphertext.
+2. You get a link back. If you didn't set your own passphrase, one is
+   auto-generated and embedded in the link itself (`#fragment` — never sent
+   to the server).
+3. Whoever you send the link to opens it; their browser fetches the
+   ciphertext, proves it has the right key (without ever revealing the key
+   to the server), and decrypts locally.
+4. The drop deletes itself after its download limit, its expiry time, or
+   5 wrong-passphrase attempts — whichever comes first.
+
+The server at no point sees your file, your passphrase, or your key.
 
 ---
 
-## 🚀 Quick Install
-
-### One-liner (Linux / macOS / Termux)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/franc417/vaultdrop/main/install.sh | bash
-```
-
-The installer auto-detects your environment and handles everything:
-
-| Platform | Package manager | Service |
-|---|---|---|
-| Arch Linux / Manjaro | `pacman` | systemd |
-| Ubuntu / Debian / Mint | `apt` | systemd |
-| Fedora / RHEL / CentOS | `dnf` | systemd |
-| openSUSE | `zypper` | systemd |
-| macOS | Homebrew | launchd |
-| Android (Termux) | `pkg` | termux-boot + tmux |
-
-### Local install (from a clone)
+## Quick start (local)
 
 ```bash
 git clone https://github.com/franc417/vaultdrop.git
 cd vaultdrop
-chmod +x install.sh
-./install.sh
-```
-
-### Installer options
-
-```bash
-./install.sh --dir /opt/vaultdrop   # custom install path
-./install.sh --port 8080            # custom port (default: 5000)
-./install.sh --max-mb 250           # raise upload limit (default: 100 MB)
-./install.sh --start                # start server immediately after install
-./install.sh --uninstall            # remove everything (data preserved)
-```
-
-### Environment variables
-
-```bash
-VAULTDROP_PORT=5000       # server port
-VAULTDROP_MAX_MB=100      # max upload size in MB
-VAULTDROP_TTL_H=24        # default drop lifetime in hours
-VAULTDROP_DIR=~/.vaultdrop  # data directory (DB + encrypted store)
-VAULTDROP_SECRET=<hex>    # Flask secret key (auto-generated if unset)
-```
-
----
-
-## 🔧 Manual Setup
-
-If you prefer not to use the installer:
-
-```bash
-git clone https://github.com/franc417/vaultdrop.git
-cd vaultdrop
-
-python3 -m venv .venv
-source .venv/bin/activate
 pip install -r requirements.txt
-
-python server.py          # starts on http://127.0.0.1:5000
-# or
-python server.py serve --host 0.0.0.0 --port 5000
+python server.py serve --host 127.0.0.1 --port 5000
 ```
 
----
-
-## 🌐 Web UI Usage
-
-1. Open `http://localhost:5000` in your browser.
-2. Drag and drop (or select) a file.
-3. Optionally set a passphrase, TTL, and burn count.
-4. Hit **Seal** — you get a one-time link.
-5. Share the link. When the recipient opens it and clicks **Claim**, the file is decrypted and delivered — then permanently deleted.
+Open **http://127.0.0.1:5000**, drop a file in, copy the link it gives you.
 
 ---
 
-## 💻 CLI Usage
-
-### `vaultdrop-cli seal` — encrypt and upload a file
+## One-line install (Termux / macOS / Arch / Debian / Fedora / openSUSE)
 
 ```bash
-# Auto-generate a passphrase (embedded in the link fragment)
-vaultdrop-cli seal report.pdf
-
-# Custom passphrase, 6-hour TTL, 1 burn
-vaultdrop-cli seal report.pdf --pass mysecret --ttl 6 --burns 1
-
-# Prompt securely (no passphrase in shell history)
-vaultdrop-cli seal report.pdf --prompt-pass
-
-# Target a remote server
-vaultdrop-cli seal report.pdf --server https://drop.example.com
+bash install.sh
 ```
 
-**Output:**
+This installs vaultdrop as a background service appropriate to your platform
+(systemd user service on Linux, launchd on macOS, termux-boot on Android)
+and adds `vaultdrop` / `vaultdrop-cli` to your `PATH`.
 
-```
- ╔══════════════════════════════╗
- ║ 🔒 vaultdrop CLI            ║
- ╚══════════════════════════════╝
-
-  Sealing: report.pdf (2.1 MB)
-  Server:  http://localhost:5000
-  TTL: 24h  Burns: ×1
-
-  ✓ Drop sealed
-
-  Link: http://localhost:5000/d/a3f9b1c2d8e4f7a0#K2pXmNqRvTyWzUjL
-
-  ⚠ Passphrase: K2pXmNqRvTyWzUjL
-    Send this separately — NEVER in the same channel as the link.
-
-  Expires: 2026-06-08 14:32  Burns: ×1
-```
-
----
-
-### `vaultdrop-cli claim` — download and decrypt
+To remove it later:
 
 ```bash
-# Passphrase read automatically from URL fragment
-vaultdrop-cli claim "http://localhost:5000/d/a3f9b1c2d8e4f7a0#K2pXmNqRvTyWzUjL"
-
-# Manual passphrase
-vaultdrop-cli claim "http://localhost:5000/d/a3f9b1c2d8e4f7a0" --pass mysecret
-
-# Save to a specific directory
-vaultdrop-cli claim "<url>" --out ~/Downloads/
+bash install.sh --uninstall
 ```
 
 ---
 
-### `vaultdrop-cli status` — check if a drop is still alive
+## CLI usage
 
 ```bash
-vaultdrop-cli status "http://localhost:5000/d/a3f9b1c2d8e4f7a0"
+# Seal (encrypt + upload) a file — auto-generates a passphrase
+python vaultdrop_cli.py --server http://127.0.0.1:5000 seal ./secret.pdf
+
+# Seal with your own passphrase, a 12h expiry, and 3 allowed downloads
+python vaultdrop_cli.py --server http://127.0.0.1:5000 seal ./secret.pdf \
+    --prompt-pass --ttl 12 --burns 3
+
+# Claim (download + decrypt) a link — paste the FULL link, including #fragment
+python vaultdrop_cli.py --server http://127.0.0.1:5000 claim \
+    "http://127.0.0.1:5000/d/<token>#<passphrase>"
+
+# Check if a drop is still alive, without consuming it
+python vaultdrop_cli.py --server http://127.0.0.1:5000 status \
+    "http://127.0.0.1:5000/d/<token>"
 ```
 
-```
-  ✓ Drop is alive
-    File:      report.pdf (2.1 MB)
-    Remaining: 1 download(s)
-    Expires:   2026-06-08 14:32
-    Password:  no (key in link)
-```
+If you installed via `install.sh`, drop the `python vaultdrop_cli.py` prefix
+and just use `vaultdrop-cli seal ...` / `vaultdrop-cli claim ...`.
+
+### Seal options
+
+| Flag             | Default | Description                                    |
+|-------------------|---------|-------------------------------------------------|
+| `--pass TEXT`      | random  | Use a specific passphrase instead of a random one |
+| `--prompt-pass`    | off     | Prompt for a passphrase with hidden input        |
+| `--ttl HOURS`       | 24      | Expire after this many hours (max 168 / 7 days) |
+| `--burns N`         | 1       | Self-destruct after N downloads (max 10)         |
 
 ---
 
-## 🔌 REST API
+## Web usage
 
-The server exposes a simple JSON API for programmatic use.
-
-### `POST /api/drop` — upload a file
-
-**Form fields:**
-
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `file` | file | required | The file to upload |
-| `passphrase` | string | auto | Custom passphrase (omit for auto) |
-| `ttl` | int | 24 | Lifetime in hours (max 168) |
-| `burn_count` | int | 1 | Downloads before deletion (max 10) |
-
-**Response:**
-
-```json
-{
-  "token": "a3f9b1c2d8e4f7a0",
-  "link": "http://localhost:5000/d/a3f9b1c2d8e4f7a0#K2pXmNqRvTyWzUjL",
-  "passphrase": "K2pXmNqRvTyWzUjL",
-  "filename": "report.pdf",
-  "size": 2162688,
-  "expires_at": 1749470400.0,
-  "burn_count": 1,
-  "has_password": false
-}
-```
-
-> When `has_password` is `false`, the passphrase is returned and embedded in the `link` fragment. It is never transmitted to the server on access — only read by the recipient's browser JavaScript.
+1. Go to the vaultdrop URL.
+2. Drag a file in, or click to browse.
+3. (Optional) Set your own passphrase, expiry, and download limit — otherwise
+   sane defaults are used and a strong passphrase is generated for you.
+4. Click **Encrypt & Seal**. Copy the link shown.
+5. Send the link to the recipient.
+   - If a passphrase was **auto-generated**, it's already embedded in the
+     link — just send the link as-is, but treat that link like the file
+     itself (whoever has it can open the drop).
+   - If you **set your own passphrase**, send the link and the passphrase
+     over two different channels (e.g. link over email, passphrase over
+     text/Signal) so intercepting one alone isn't enough.
+6. The recipient opens the link, and the file downloads automatically once
+   decrypted (or after they enter the passphrase, if one wasn't embedded).
 
 ---
 
-### `POST /api/download/<token>` — claim and decrypt
+## Docker
 
 ```bash
-curl -X POST http://localhost:5000/api/download/<token> \
-  -H "Content-Type: application/json" \
-  -d '{"passphrase": "K2pXmNqRvTyWzUjL"}'
+docker compose up -d --build
 ```
 
-**Response:**
+Serves on `127.0.0.1:5000` by default — put a reverse proxy in front for
+public access (see below).
 
-```json
-{
-  "filename": "report.pdf",
-  "content_type": "application/pdf",
-  "data_b64": "<base64-encoded plaintext>",
-  "burned": true
-}
+---
+
+## Deploying this publicly
+
+**Do not expose vaultdrop over plain HTTP on the internet.** Zero-knowledge
+encryption protects the file from the *server*, not from anyone
+eavesdropping on an unencrypted connection. Read
+[`DEPLOY.md`](DEPLOY.md) for TLS reverse-proxy setup (Caddy and nginx
+configs included) before going live.
+
+Minimal version of what you need:
+
+```bash
+# 1. Run vaultdrop behind gunicorn, bound to localhost only
+gunicorn -w 2 -b 127.0.0.1:5000 server:app
+
+# 2. Put Caddy or nginx in front of it with a real TLS cert
+# 3. Once TLS is confirmed working:
+export VAULTDROP_TRUST_PROXY=1
 ```
 
 ---
 
-### `GET /api/status/<token>` — check drop state
+## Configuration
 
-```bash
-curl http://localhost:5000/api/status/<token>
-```
+Environment variables (all optional):
 
-```json
-{
-  "alive": true,
-  "filename": "report.pdf",
-  "size": 2162688,
-  "expires_at": 1749470400.0,
-  "remaining": 1,
-  "has_password": false
-}
-```
+| Variable                | Default          | Meaning                                     |
+|---------------------------|------------------|-----------------------------------------------|
+| `VAULTDROP_DIR`            | `~/.vaultdrop`   | Where the DB and encrypted blobs are stored |
+| `VAULTDROP_MAX_MB`         | `100`            | Max ciphertext size per drop                |
+| `VAULTDROP_TTL_H`          | `24`             | Default expiry, in hours                    |
+| `VAULTDROP_TRUST_PROXY`    | `0`              | Set to `1` only behind a trusted reverse proxy |
+| `VAULTDROP_LOG_LEVEL`      | `INFO`           | Python logging level                        |
 
 ---
 
-## 🔐 Security Model
+## Security
 
-```
-Sender                          Server                      Recipient
-──────                          ──────                      ─────────
-                                
-File ──→ AES-256-GCM encrypt ──→ Ciphertext on disk
-         PBKDF2 (260k SHA-256)
-         random nonce + salt
-                                
-Link = /d/<token>#<passphrase>
-                               ← fragment never hits server
-                                                        ← passphrase from fragment
-                                Decrypt in memory ──────────────→ Plaintext
-                                Delete ciphertext
-                                Delete DB record
-```
+- AES-256-GCM, key derived via PBKDF2-HMAC-SHA256 (600,000 iterations)
+- Encryption/decryption happen client-side only (browser WebCrypto or the
+  Python CLI) — the server never has the key or the plaintext
+- Downloads are gated behind proof-of-key-possession (HMAC verifier),
+  constant-time compared
+- 5 consecutive wrong passphrase attempts self-destructs the drop
+- Per-IP rate limiting on every endpoint
+- Drops self-delete on TTL expiry or once their download limit is hit
 
-**Key design decisions:**
+Full details and known limitations: [`SECURITY.md`](SECURITY.md).
 
-- The **encryption key** is derived from the passphrase via PBKDF2-SHA256 (260 000 iterations). The passphrase itself is never stored.
-- When using auto-generated keys, the passphrase lives only in the URL `#fragment`. Fragments are not sent in HTTP requests — the server never sees it.
-- Ciphertext and the SQLite record are **deleted immediately** once the burn count is reached. There is no soft-delete.
-- A background cleanup thread runs every 5 minutes to purge expired drops even if they were never claimed.
-- `VAULTDROP_SECRET` should be set to a stable value in production to avoid session issues across restarts.
-
-> **Note:** vaultdrop is designed for trusted LAN/VPN use or behind a reverse proxy (nginx/caddy) with TLS. Do not expose it directly to the internet without HTTPS — the link fragment provides no protection over plain HTTP.
+Found a vulnerability? Please open a private GitHub security advisory
+rather than a public issue.
 
 ---
 
-## 🏃 Running on Termux (Android)
+## License
 
-vaultdrop runs natively in Termux — no root required.
-
-```bash
-# Install
-curl -fsSL https://raw.githubusercontent.com/franc417/vaultdrop/main/install.sh | bash
-
-# Start in a tmux background session (survives terminal close)
-vaultdrop-bg
-
-# Start in foreground
-vaultdrop
-
-# Access from the same phone
-http://localhost:5000
-
-# Access from other devices on the same LAN
-http://<PHONE_IP>:5000
-```
-
-Auto-start on boot requires `termux-boot`:
-
-```bash
-pkg install termux-boot
-./install.sh   # re-run — will detect and configure boot script
-```
-
----
-
-## 🔄 Service Management
-
-**systemd (Linux):**
-
-```bash
-sudo systemctl start vaultdrop
-sudo systemctl stop vaultdrop
-sudo systemctl status vaultdrop
-journalctl -u vaultdrop -f        # live logs
-```
-
-**launchd (macOS):**
-
-```bash
-launchctl start com.franc417.vaultdrop
-launchctl stop com.franc417.vaultdrop
-tail -f ~/.vaultdrop/logs/vaultdrop.log
-```
-
-**Termux:**
-
-```bash
-vaultdrop-bg               # start in tmux session
-tmux attach -t vaultdrop   # attach to view logs
-```
-
----
-
-## 🗑️ Uninstall
-
-```bash
-./install.sh --uninstall
-```
-
-This removes the installed files, CLI wrappers, and service. Your data directory (`~/.vaultdrop/`) is **intentionally preserved**. Remove it manually if needed:
-
-```bash
-rm -rf ~/.vaultdrop
-```
-
----
-
-## 📦 Dependencies
-
-```
-flask>=3.0
-cryptography>=42.0
-click>=8.0
-requests>=2.31
-```
-
-Python 3.10+ recommended. All other dependencies (SQLite, `uuid`, `threading`) are from the standard library.
-
----
-
-## 📄 License
-
-MIT — do whatever you want, just don't blame me.
-
----
-
-*Built by [franc417](https://github.com/franc417)*
+MIT — see [`LICENSE`](LICENSE).

@@ -2,236 +2,120 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>vaultdrop — claim your file</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<style>
-:root {
-  --bg:#0a0a0b; --surface:#111113; --surface2:#1a1a1d;
-  --border:#2a2a2f; --border2:#3a3a42;
-  --green:#00e07a; --green-dim:#00a358; --green-glow:#00e07a28;
-  --text:#e8e8ec; --muted:#6b6b78; --danger:#ff4d6a;
-  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh}
-body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);pointer-events:none;z-index:0}
-body{position:relative;z-index:1}
-
-.page{max-width:520px;margin:0 auto;padding:3rem 1.5rem}
-
-.back{display:inline-flex;align-items:center;gap:.4rem;font-family:var(--mono);font-size:.72rem;color:var(--muted);text-decoration:none;margin-bottom:2rem;transition:color .15s}
-.back:hover{color:var(--green)}
-.back svg{width:14px;height:14px;stroke:currentColor;fill:none}
-
-.vault-card{border:1px solid var(--border2);border-radius:4px;background:var(--surface);overflow:hidden}
-
-.card-header{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;gap:.75rem}
-.card-header .icon{width:40px;height:40px;border:1.5px solid var(--green);display:grid;place-items:center;box-shadow:0 0 16px var(--green-glow)}
-.card-header .icon svg{width:20px;height:20px;stroke:var(--green);fill:none;stroke-width:1.5}
-.card-header h1{font-family:var(--mono);font-size:.9rem;color:var(--text);flex:1}
-.burn-badge{font-family:var(--mono);font-size:.65rem;border:1px solid var(--danger);color:var(--danger);padding:.2rem .6rem;border-radius:2px;white-space:nowrap}
-
-.card-body{padding:1.5rem}
-
-.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.5rem}
-.meta-item{display:flex;flex-direction:column;gap:.25rem}
-.meta-label{font-family:var(--mono);font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
-.meta-val{font-family:var(--mono);font-size:.82rem;color:var(--text)}
-
-.separator{border:none;border-top:1px solid var(--border);margin:1.25rem 0}
-
-.field{display:flex;flex-direction:column;gap:.35rem;margin-bottom:1rem}
-.field label{font-family:var(--mono);font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
-.field input{background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:.85rem;padding:.65rem .85rem;border-radius:3px;outline:none;transition:border-color .15s}
-.field input:focus{border-color:var(--green)}
-.field input::placeholder{color:var(--muted)}
-
-.btn-claim{width:100%;background:transparent;border:1.5px solid var(--green);color:var(--green);font-family:var(--mono);font-size:.85rem;font-weight:500;padding:.85rem;cursor:pointer;border-radius:3px;transition:background .15s,box-shadow .15s;letter-spacing:.08em}
-.btn-claim:hover:not(:disabled){background:var(--green-glow);box-shadow:0 0 24px var(--green-glow)}
-.btn-claim:disabled{opacity:.4;cursor:not-allowed}
-
-.error-box{display:none;margin-top:1rem;padding:.75rem 1rem;border:1px solid var(--danger);background:rgba(255,77,106,.06);font-family:var(--mono);font-size:.8rem;color:var(--danger);border-radius:3px}
-.error-box.show{display:block}
-
-.success-box{display:none;margin-top:1rem;padding:.75rem 1rem;border:1px solid var(--green-dim);background:var(--green-glow);font-family:var(--mono);font-size:.8rem;color:var(--green);border-radius:3px;line-height:1.6}
-.success-box.show{display:block}
-
-.warn-notice{margin-top:1.25rem;padding:.75rem 1rem;border-left:2px solid var(--danger);background:rgba(255,77,106,.06);font-size:.77rem;color:var(--muted);font-family:var(--mono);line-height:1.6}
-.warn-notice strong{color:var(--danger)}
-
-.progress-bar-wrap{background:var(--surface2);border-radius:2px;height:3px;overflow:hidden;margin-bottom:.5rem;display:none}
-.progress-bar-wrap.show{display:block}
-.progress-bar-fill{height:100%;background:var(--green);width:0;transition:width .25s;border-radius:2px}
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>vaultdrop — claim</title>
+<link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<div class="page">
+<div class="card">
+  <h1>🔓 Claim this drop</h1>
+  <div id="metaBox" class="meta">Loading…</div>
 
-  <a class="back" href="/"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg> vaultdrop</a>
-
-  <div class="vault-card">
-    <div class="card-header">
-      <div class="icon">
-        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="1"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      </div>
-      <h1>SEALED DROP</h1>
-      <span class="burn-badge">BURNS AFTER {{ remaining }} READ{% if remaining != 1 %}S{% endif %}</span>
-    </div>
-
-    <div class="card-body">
-      <div class="meta-grid">
-        <div class="meta-item">
-          <span class="meta-label">Filename</span>
-          <span class="meta-val" id="fname">{{ filename }}</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-label">Size</span>
-          <span class="meta-val" id="fsize">{{ size | filesizeformat if size else size }}</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-label">Expires</span>
-          <span class="meta-val">{{ expires }}</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-label">Token</span>
-          <span class="meta-val" style="color:var(--muted);font-size:.7rem">{{ token[:16] }}…</span>
-        </div>
-      </div>
-
-      <hr class="separator">
-
-      {% if has_password %}
-      <div class="field">
-        <label>Passphrase required</label>
-        <input type="password" id="passInput" placeholder="Enter passphrase from sender" autofocus>
-      </div>
-      {% else %}
-      <div class="field">
-        <label>Passphrase</label>
-        <input type="password" id="passInput" placeholder="Reading from link…" id="passInput" readonly style="color:var(--green-dim)">
-      </div>
-      {% endif %}
-
-      <div class="progress-bar-wrap" id="progressWrap">
-        <div class="progress-bar-fill" id="progressFill"></div>
-      </div>
-
-      <button class="btn-claim" id="claimBtn">DECRYPT & DOWNLOAD</button>
-
-      <div class="error-box" id="errorBox"></div>
-      <div class="success-box" id="successBox"></div>
-
-      <div class="warn-notice">
-        <strong>⚠ This file will be permanently deleted</strong> from the server once the download limit is reached. Save it somewhere safe — you cannot re-download it.
-      </div>
-    </div>
+  <div id="passRow" style="display:none;">
+    <label>Passphrase</label>
+    <input type="password" id="passphrase" placeholder="Enter passphrase">
+    <button id="claimBtn">Decrypt &amp; Download</button>
   </div>
 
+  <div id="progress" class="progress" style="display:none;"></div>
+  <div id="error" class="err" style="display:none;"></div>
+  <div id="success" class="meta" style="display:none;"></div>
+
+  <div class="footer-note">
+    Decryption happens entirely in your browser. This server never sees the plaintext file or the key.
+  </div>
 </div>
 
+<script src="/static/vaultdrop.js"></script>
 <script>
-const TOKEN = {{ token | tojson }};
-const HAS_PASSWORD = {{ 'true' if has_password else 'false' }};
+const token = "{{ token }}";
+const metaBox = document.getElementById('metaBox');
+const passRow = document.getElementById('passRow');
+const claimBtn = document.getElementById('claimBtn');
+const progressEl = document.getElementById('progress');
+const errorEl = document.getElementById('error');
+const successEl = document.getElementById('success');
 
-// Try to read passphrase from URL fragment (auto-generated key path)
-const fragment = window.location.hash.slice(1);
-const passInput = document.getElementById('passInput');
+let meta = null;
 
-if (!HAS_PASSWORD && fragment) {
-  passInput.value = fragment;
-  passInput.style.color = 'var(--green-dim)';
-}
+// Passphrase embedded in the URL fragment (auto-generated links) never
+// leaves the browser — it's not sent in the request line or logged by servers.
+const fragmentKey = window.location.hash ? window.location.hash.slice(1) : null;
 
-function formatSize(n) {
-  if (n < 1024) return n + ' B';
-  if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
-  return (n/1048576).toFixed(1) + ' MB';
-}
-
-// Fix size display
-const sizeEl = document.getElementById('fsize');
-const rawSize = {{ size }};
-sizeEl.textContent = formatSize(rawSize);
-
-document.getElementById('claimBtn').addEventListener('click', async () => {
-  const passphrase = passInput.value.trim();
-  if (!passphrase) {
-    const eb = document.getElementById('errorBox');
-    eb.textContent = '✕ No passphrase. Check your link or ask the sender.';
-    eb.classList.add('show');
-    return;
-  }
-
-  const btn = document.getElementById('claimBtn');
-  btn.disabled = true;
-  btn.textContent = 'DECRYPTING…';
-  document.getElementById('errorBox').classList.remove('show');
-  document.getElementById('successBox').classList.remove('show');
-
-  const progressWrap = document.getElementById('progressWrap');
-  const progressFill = document.getElementById('progressFill');
-  progressWrap.classList.add('show');
-  let p = 0;
-  const ticker = setInterval(() => {
-    p = Math.min(p + Math.random()*15, 80);
-    progressFill.style.width = p + '%';
-  }, 150);
-
+async function loadMeta() {
   try {
-    const resp = await fetch(`/api/download/${TOKEN}`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ passphrase })
-    });
-
-    clearInterval(ticker);
-    const data = await resp.json();
-
-    if (!resp.ok) {
-      progressFill.style.width = '0';
-      progressWrap.classList.remove('show');
-      document.getElementById('errorBox').textContent = '✕ ' + (data.error || 'Download failed');
-      document.getElementById('errorBox').classList.add('show');
-      btn.disabled = false;
-      btn.textContent = 'DECRYPT & DOWNLOAD';
+    const res = await fetch(`/api/meta/${token}`);
+    const data = await res.json();
+    if (!res.ok || !data.alive) {
+      metaBox.innerHTML = `This drop is unavailable (${data.reason || 'not found'}).`;
       return;
     }
+    meta = data;
+    metaBox.innerHTML = `<b>${fmtSize(data.blob_size)}</b> encrypted · ${data.remaining} download(s) remaining · expires ${fmtTs(data.expires_at)}`;
 
-    progressFill.style.width = '100%';
-
-    // Trigger browser download from base64
-    const binary = atob(data.data_b64);
-    const bytes  = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const blob = new Blob([bytes], {type: data.content_type || 'application/octet-stream'});
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = data.filename;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    const sb = document.getElementById('successBox');
-    if (data.burned) {
-      sb.innerHTML = `✓ <strong>${data.filename}</strong> downloaded and permanently deleted from server.`;
+    if (fragmentKey) {
+      passRow.style.display = 'none';
+      await attemptDecrypt(fragmentKey);
     } else {
-      sb.innerHTML = `✓ <strong>${data.filename}</strong> downloaded. Drop may still have remaining downloads.`;
+      passRow.style.display = 'block';
     }
-    sb.classList.add('show');
-    progressWrap.classList.remove('show');
-    btn.textContent = '✓ DOWNLOADED';
-
-  } catch(err) {
-    clearInterval(ticker);
-    progressWrap.classList.remove('show');
-    document.getElementById('errorBox').textContent = '✕ Network error: ' + err.message;
-    document.getElementById('errorBox').classList.add('show');
-    btn.disabled = false;
-    btn.textContent = 'DECRYPT & DOWNLOAD';
+  } catch (e) {
+    metaBox.textContent = 'Failed to load this drop.';
   }
+}
+
+async function attemptDecrypt(passphrase) {
+  errorEl.style.display = 'none';
+  progressEl.style.display = 'block';
+  progressEl.textContent = 'Deriving key…';
+  claimBtn && (claimBtn.disabled = true);
+
+  try {
+    const rawKeyBits = await deriveKeyMaterial(passphrase, fromB64(meta.salt), meta.kdf_iterations);
+    const verifier = await computeVerifier(rawKeyBits);
+
+    progressEl.textContent = 'Requesting encrypted blob…';
+    const res = await fetch(`/api/download/${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ verifier }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error === 'Wrong key'
+        ? `Wrong passphrase (${data.attempts_remaining} attempt(s) left before this drop self-destructs).`
+        : (data.error || 'Failed to claim drop'));
+    }
+
+    progressEl.textContent = 'Decrypting locally…';
+    const ciphertext = fromB64(data.blob_b64);
+    const file = await decryptBlob(ciphertext, meta.salt, meta.nonce, meta.kdf_iterations, passphrase);
+
+    const blob = new Blob([file.bytes], { type: file.type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+
+    progressEl.style.display = 'none';
+    successEl.style.display = 'block';
+    successEl.innerHTML = `✅ Decrypted <b>${file.name}</b> (${fmtSize(file.size)}). Download started.` +
+      (data.burned ? ' This drop has now been destroyed.' : '');
+    passRow.style.display = 'none';
+  } catch (e) {
+    progressEl.style.display = 'none';
+    errorEl.textContent = e.message;
+    errorEl.style.display = 'block';
+    claimBtn && (claimBtn.disabled = false);
+  }
+}
+
+claimBtn.addEventListener('click', () => {
+  const p = document.getElementById('passphrase').value;
+  if (!p) return;
+  attemptDecrypt(p);
 });
+
+loadMeta();
 </script>
 </body>
 </html>

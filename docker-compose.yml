@@ -1,0 +1,15 @@
+services:
+  vaultdrop:
+    build: .
+    restart: unless-stopped
+    environment:
+      - VAULTDROP_MAX_MB=100
+      - VAULTDROP_TTL_H=24
+      - VAULTDROP_TRUST_PROXY=1   # only if you add a reverse proxy in front
+    volumes:
+      - vaultdrop-data:/data
+    ports:
+      - "127.0.0.1:5000:5000"   # put Caddy/nginx in front for TLS; see DEPLOY.md
+
+volumes:
+  vaultdrop-data:

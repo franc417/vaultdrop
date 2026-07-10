@@ -1,12 +1,9 @@
 __pycache__/
 *.pyc
-*.pyo
+venv/
 .venv/
-.env
-*.db
-*.sqlite
-store/
+*.egg-info/
+.vaultdrop/
+vault.db
 *.log
-*.err
 .DS_Store
-{vaultdrop,templates,static}/
